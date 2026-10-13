@@ -50,3 +50,22 @@ select occurred_at, action, actor_email, changed_keys, before_data->>'slug' as b
 from public.audit_log
 where table_name = 'offices' and (after_data->>'slug' = 'az.glendale.ford' or before_data->>'name' ilike 'legends family dental%')
 order by occurred_at;
+
+-- 7. Exact trash time of trashed folders (use deleted_at to search Vercel / Supabase API logs)
+select f.id, f.name, f.deleted_at, f.updated_at, f.created_at, c.email as created_by
+from public.document_folders f
+join public.offices o on o.id = f.office_id
+left join public.users c on c.id = f.created_by
+where o.slug = 'az.glendale.ford' and f.deleted_at is not null
+order by f.deleted_at;
+
+-- 8. Everyone who could have trashed it (office users, linked users, admins)
+select distinct u.email, u.full_name, u.role,
+       case when u.office_id = o.id then 'primary office' when uo.user_id is not null then 'linked' else 'admin' end as access
+from public.offices o
+join public.users u on u.office_id = o.id
+   or exists (select 1 from public.user_offices x where x.user_id = u.id and x.office_id = o.id)
+   or u.role in ('eassist_admin', 'eassist_vera_quality_assistant')
+left join public.user_offices uo on uo.user_id = u.id and uo.office_id = o.id
+where o.slug = 'az.glendale.ford'
+order by access, u.email;
