@@ -1,11 +1,12 @@
--- Test of 462 (no lasting changes): compares old vs new offices RLS for sample users, then ROLLBACK. Paste into the Supabase SQL editor.
+-- Test of 462, batch 3/3 (23 users). No lasting changes: compares old vs new offices RLS, then ROLLBACK.
+-- Paste into the Supabase SQL editor. Good result: missing = 0 and extra = 0 on every row.
 begin;
 create temp table _t(uid uuid, phase text, ids uuid[], ms numeric) on commit drop;
 
 do $do$
 declare u uuid; t0 timestamptz; a uuid[]; ms numeric;
 begin
-  foreach u in array array[null,'754828a4-87fb-4761-8a22-9f7536130c13','afd66d1f-139b-4a3f-9315-8deb7833a8a5']::uuid[] loop
+  foreach u in array array['f83b8564-935b-4fd7-a183-64a4e214b7a5','65671854-44f1-45aa-a554-318af547edf0','a26dc8e3-9f89-4d5d-bbb1-196f1cb234b3','63c8c5db-12bb-4ce1-8440-994a2a92b6d0','a40819ac-23f0-4458-b966-9e5dace3490d','c7c588d7-78ea-42d6-84b6-07ebe97d489c','c060983b-a36a-45db-98b8-cc0e4334d7cc','a86b6397-df32-4071-9d68-7548e8984e80','7d9c4574-f69b-4450-9c4b-4139f92079cf','78ba9a7c-cd84-416a-9593-e8ba50f84266','6294666a-af05-4cd0-a1c8-9daa17d86a7a','5663d92f-14e5-4962-b26e-dda53444ae09','fccd4e59-a0cc-48d9-ba62-744678b8b1a9','4f4e3b29-45dd-475c-9402-192f030fb845','47c1e4ae-7852-4c1d-bdf2-02f7b4baac50','36592093-2494-4e67-947d-58fe30aea17d','3171c0e7-b860-4d04-8130-765878dbf7bc','1b50e355-6efb-4735-9fe6-4b29662a8c7c','11b1d201-b881-418e-9211-f37af5e1c412','54d831a1-a9b1-472f-a5cc-cf3d3068300b','f65ee7cb-b33e-4dce-b594-253b95255175','ddd10731-1e31-4ceb-9c0b-0158e9328a3e','d20d9b45-ef66-48b1-b062-0add33e654c9']::uuid[] loop
     perform set_config('request.jwt.claims', coalesce(json_build_object('sub', u, 'role', 'authenticated')::text, '{"role":"anon"}'), true);
     perform set_config('role', case when u is null then 'anon' else 'authenticated' end, true);
     t0 := clock_timestamp();
@@ -105,7 +106,7 @@ analyze public.offices, public.user_supervisors;
 do $do$
 declare u uuid; t0 timestamptz; a uuid[]; ms numeric;
 begin
-  foreach u in array array[null,'754828a4-87fb-4761-8a22-9f7536130c13','afd66d1f-139b-4a3f-9315-8deb7833a8a5']::uuid[] loop
+  foreach u in array array['f83b8564-935b-4fd7-a183-64a4e214b7a5','65671854-44f1-45aa-a554-318af547edf0','a26dc8e3-9f89-4d5d-bbb1-196f1cb234b3','63c8c5db-12bb-4ce1-8440-994a2a92b6d0','a40819ac-23f0-4458-b966-9e5dace3490d','c7c588d7-78ea-42d6-84b6-07ebe97d489c','c060983b-a36a-45db-98b8-cc0e4334d7cc','a86b6397-df32-4071-9d68-7548e8984e80','7d9c4574-f69b-4450-9c4b-4139f92079cf','78ba9a7c-cd84-416a-9593-e8ba50f84266','6294666a-af05-4cd0-a1c8-9daa17d86a7a','5663d92f-14e5-4962-b26e-dda53444ae09','fccd4e59-a0cc-48d9-ba62-744678b8b1a9','4f4e3b29-45dd-475c-9402-192f030fb845','47c1e4ae-7852-4c1d-bdf2-02f7b4baac50','36592093-2494-4e67-947d-58fe30aea17d','3171c0e7-b860-4d04-8130-765878dbf7bc','1b50e355-6efb-4735-9fe6-4b29662a8c7c','11b1d201-b881-418e-9211-f37af5e1c412','54d831a1-a9b1-472f-a5cc-cf3d3068300b','f65ee7cb-b33e-4dce-b594-253b95255175','ddd10731-1e31-4ceb-9c0b-0158e9328a3e','d20d9b45-ef66-48b1-b062-0add33e654c9']::uuid[] loop
     perform set_config('request.jwt.claims', coalesce(json_build_object('sub', u, 'role', 'authenticated')::text, '{"role":"anon"}'), true);
     perform set_config('role', case when u is null then 'anon' else 'authenticated' end, true);
     t0 := clock_timestamp();
