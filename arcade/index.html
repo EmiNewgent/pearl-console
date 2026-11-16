@@ -159,6 +159,7 @@ textarea{resize:vertical;min-height:70px}
 <div class="hud">
   <div class="brand">
     <h1>eAssist Neon Arcade</h1>
+    <span class="chip" style="color:var(--gold)">Q4 2026</span>
     <span id="phaseChip" class="chip lobby">Explore</span>
   </div>
   <div class="hud-right">
@@ -223,7 +224,7 @@ const DESTS = [
   {id:'wall',    name:'Shout-Out Wall', tag:'Thank someone for this quarter', color:'#ff3fd2', ang:30},
   {id:'portal',  name:'Portal Gate',    tag:'The next chapter of eAssist', color:'#b07bff', ang:90},
   {id:'vault',   name:'Trophy Vault',   tag:'Quarterly achievements, unlocked live', color:'#4dffa6', ang:150},
-  {id:'rewind',  name:'Quarter Rewind', tag:'Five questions about the quarter', color:'#ff8a3f', ang:210},
+  {id:'rewind',  name:'Quarter Rewind', tag:'Five questions about Q4 and the year in IT', color:'#ff8a3f', ang:210},
 ];
 DESTS.forEach(d => { const a = d.ang * Math.PI/180; d.x = CX + Math.cos(a)*POD_RX; d.y = CY + Math.sin(a)*POD_RY; });
 const ARENA = {id:'arena', name:'Core Arena', tag:'Boss fights happen here', color:'#ff5470', x:CX, y:CY};
@@ -237,7 +238,7 @@ const TEAMS = ['Help Desk 1','Help Desk 2','New SC / Admin / Security','NOI / CP
 const QUIZ = [
   {q:'Microsoft ended free Windows 10 support on…', a:['January 14, 2025','October 14, 2025','December 31, 2025','June 30, 2026'], c:1},
   {q:'In “Windows 10 ESU”, ESU stands for…', a:['Extended Security Updates','Enterprise Support Upgrade','End of Service Utility','Emergency Software Update'], c:0},
-  {q:'Which breakout flagged DTX Studio and Open Dental update roadblocks from offices?', a:['Help Desk','Innovation','NOI / CP','Security'], c:2},
+  {q:'At the spring planning meet, which breakout flagged DTX Studio and Open Dental update roadblocks?', a:['Help Desk','Innovation','NOI / CP','Security'], c:2},
   {q:'A user forwards a suspicious email. What’s the right first move?', a:['Click the link to check it','Report it to Security without opening links','Reply and ask the sender','Delete it and move on'], c:1},
   {q:'What makes a ticket “done”, not just “closed”?', a:['The timer ran out','It was reassigned','The fix is confirmed with the user and documented','The office stopped replying'], c:2},
 ];
@@ -246,8 +247,8 @@ const DEFAULT_ACH = [
   {t:'NOI & CP Navigators', d:'Add how many new offices were brought online.', on:false},
   {t:'Security Shield', d:'Add the security win, e.g. phishing reports handled.', on:false},
   {t:'Innovation Lab', d:'Add what the Innovation team shipped.', on:false},
-  {t:'Rocks Crushed', d:'Add how many rocks the team completed.', on:false},
-  {t:'Mission Ready', d:'Add the missions committed for next quarter.', on:false},
+  {t:'Rocks Crushed', d:'Add how many Q4 rocks the team completed.', on:false},
+  {t:'Mission Ready', d:'Add the missions committed for Q1 2027.', on:false},
 ];
 const MISSIONS = [
   {id:'sprint', t:'Score 15+ in Ticket Sprint', done:m => (m.sprint||0) >= 15},
@@ -743,7 +744,7 @@ const RENDER = {
     drawAch();
     // reveal
     const revH = h('input', {type:'text', id:'gmRevH', maxlength:'80', placeholder:'Headline'});
-    const revB = h('textarea', {id:'gmRevB', maxlength:'600', placeholder:'What’s next for eAssist'});
+    const revB = h('textarea', {id:'gmRevB', maxlength:'600', placeholder:'What’s next for eAssist IT in 2027'});
     revH.value = store('arcade.revH') || ''; revB.value = store('arcade.revB') || '';
     revH.addEventListener('input', () => store('arcade.revH', revH.value)); revB.addEventListener('input', () => store('arcade.revB', revB.value));
     // videos
