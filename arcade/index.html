@@ -1,0 +1,1122 @@
+<title>eAssist Neon Arcade</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Audiowide&family=Chakra+Petch:wght@400;600;700&family=Share+Tech+Mono&display=swap">
+<style>
+/* Layout: full-bleed canvas world (one shared hall, six pods + central arena) with a thin HUD and slide-up panels. Single committed dark neon look. */
+:root{
+  color-scheme: dark;
+  --void:#07051a; --deep:#140b38; --glass:rgba(18,10,52,.86); --line:rgba(120,140,255,.28);
+  --cyan:#3ff3ff; --magenta:#ff3fd2; --gold:#ffd23f; --violet:#b07bff; --ok:#4dffa6; --danger:#ff5470;
+  --ink:#eef1ff; --dim:#a4abdb;
+  --f-display:'Audiowide', 'Trebuchet MS', system-ui, sans-serif;
+  --f-body:'Chakra Petch', 'Segoe UI', system-ui, sans-serif;
+  --f-mono:'Share Tech Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{background:var(--void);color:var(--ink);font-family:var(--f-body);font-size:15px;overflow:hidden;position:relative}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+#world,#fx{position:absolute;inset:0;width:100%;height:100%;display:block}
+#world{touch-action:none}
+#fx{pointer-events:none;z-index:40}
+
+.hud{position:absolute;left:0;right:0;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+  padding:12px max(16px, env(safe-area-inset-right,0px)) 12px max(16px, env(safe-area-inset-left,0px));pointer-events:none;
+  background:linear-gradient(180deg, rgba(7,5,26,.9), rgba(7,5,26,0))}
+.hud > *{pointer-events:auto}
+.brand{display:flex;align-items:center;gap:10px;min-width:0}
+.brand h1{font-family:var(--f-display);font-size:18px;margin:0;letter-spacing:.06em;white-space:nowrap;
+  background:linear-gradient(90deg,var(--cyan),var(--magenta));-webkit-background-clip:text;background-clip:text;color:transparent}
+.chip{font-family:var(--f-mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;padding:4px 10px;border-radius:999px;border:1px solid currentColor;white-space:nowrap}
+.chip.lobby{color:var(--cyan)} .chip.boss{color:var(--danger);animation:pulse 1s infinite} .chip.victory{color:var(--gold)} .chip.reveal{color:var(--violet)}
+@keyframes pulse{50%{opacity:.45}}
+.hud-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.stat{font-family:var(--f-mono);font-size:13px;color:var(--dim);white-space:nowrap}
+.stat b{color:var(--ink);font-weight:400}
+.btn{border:1px solid var(--line);background:rgba(30,20,80,.7);padding:7px 12px;border-radius:8px;font-weight:600;font-size:14px;transition:border-color .15s, background .15s}
+.btn:hover{border-color:var(--cyan)}
+.btn.hot{border-color:var(--magenta);background:rgba(255,63,210,.18)}
+.btn.primary{background:linear-gradient(90deg,var(--cyan),var(--magenta));color:#0b0620;border:0}
+.btn.danger{border-color:var(--danger);color:var(--danger)}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+
+#banner{position:absolute;top:64px;left:50%;transform:translateX(-50%);z-index:19;max-width:min(720px, calc(100% - 32px));
+  padding:8px 16px;border-radius:8px;background:rgba(255,63,210,.16);border:1px solid var(--magenta);font-weight:600;text-align:center}
+#bossbar{position:absolute;top:108px;left:50%;transform:translateX(-50%);z-index:19;width:min(560px, calc(100% - 32px));display:grid;gap:4px}
+#bossbar .lbl{display:flex;justify-content:space-between;font-family:var(--f-mono);font-size:12px;letter-spacing:.14em;color:var(--danger)}
+.track{height:12px;border-radius:6px;background:rgba(255,84,112,.15);border:1px solid rgba(255,84,112,.5);overflow:hidden}
+.track i{display:block;height:100%;background:linear-gradient(90deg,#ff5470,#ff3fd2);transition:width .25s}
+
+#prompt{position:absolute;left:50%;bottom:max(24px, env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:21;display:flex;gap:10px;align-items:center}
+#prompt .btn{font-size:16px;padding:10px 18px;box-shadow:0 0 24px rgba(63,243,255,.35)}
+.kbd{font-family:var(--f-mono);font-size:12px;color:var(--dim);border:1px solid var(--line);border-radius:4px;padding:2px 6px}
+#help{position:absolute;left:max(16px, env(safe-area-inset-left,0px));bottom:max(16px, env(safe-area-inset-bottom,0px));z-index:18;font-family:var(--f-mono);font-size:12px;color:var(--dim);max-width:46%}
+
+#panel{position:absolute;inset:0;z-index:30;display:grid;place-items:center;background:rgba(5,3,20,.55);padding:16px max(16px, env(safe-area-inset-right,0px)) 16px max(16px, env(safe-area-inset-left,0px))}
+.card{--accent:var(--cyan);width:min(760px,100%);max-height:100%;overflow:auto;background:var(--glass);border:1px solid var(--accent);border-radius:14px;
+  box-shadow:0 0 0 1px rgba(255,255,255,.04), 0 0 48px color-mix(in srgb, var(--accent) 35%, transparent);backdrop-filter:blur(8px)}
+.card > header{display:flex;align-items:flex-start;gap:12px;padding:18px 20px 12px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--glass);z-index:1}
+.card > header div{flex:1;min-width:0}
+.card h2{font-family:var(--f-display);font-size:22px;margin:0;color:var(--accent);text-wrap:balance;letter-spacing:.04em}
+.card header p{margin:4px 0 0;color:var(--dim);font-size:14px}
+#panelBody{padding:16px 20px 20px;display:grid;gap:16px}
+h3{font-family:var(--f-mono);font-weight:400;font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);margin:0}
+.muted{color:var(--dim)}
+.list{display:grid;gap:8px;margin:0;padding:0;list-style:none}
+.row{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;background:rgba(255,255,255,.04);border:1px solid var(--line);min-width:0}
+.row .grow{flex:1;min-width:0}
+.check{width:22px;height:22px;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center;flex:none;font-size:12px}
+.check.on{border-color:var(--ok);background:rgba(77,255,166,.2);color:var(--ok)}
+.bar{height:6px;border-radius:3px;background:rgba(255,255,255,.08);overflow:hidden;margin-top:6px}
+.bar i{display:block;height:100%;background:var(--accent)}
+.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+
+.sprint{position:relative;height:300px;border-radius:10px;border:1px dashed var(--line);overflow:hidden;background:repeating-linear-gradient(0deg, rgba(255,210,63,.04) 0 1px, transparent 1px 30px)}
+.claim{position:absolute;width:30%;padding:8px 10px;border-radius:8px;border:1px solid var(--ok);background:rgba(77,255,166,.12);text-align:left;animation:pop .15s ease-out}
+.claim.bad{border-color:var(--danger);background:rgba(255,84,112,.12)}
+.claim b{display:block;font-family:var(--f-mono);font-size:15px}
+.claim small{font-size:11px;letter-spacing:.08em}
+@keyframes pop{from{transform:scale(.7);opacity:0}}
+.scoreline{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.big{font-family:var(--f-display);font-size:30px}
+
+.answers{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px}
+.answers .btn{text-align:left;padding:12px}
+.answers .btn.right{border-color:var(--ok);background:rgba(77,255,166,.15)}
+.answers .btn.wrong{border-color:var(--danger);background:rgba(255,84,112,.15)}
+
+.wall{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
+.note{padding:12px;border-radius:10px;background:rgba(255,63,210,.08);border:1px solid rgba(255,63,210,.4);min-width:0;overflow-wrap:anywhere}
+.note cite{display:block;margin-top:8px;font-style:normal;font-family:var(--f-mono);font-size:12px;color:var(--magenta)}
+textarea,input[type=text],input[type=number],input[type=url]{width:100%;box-sizing:border-box;background:rgba(5,3,20,.6);border:1px solid var(--line);border-radius:8px;color:var(--ink);font:inherit;padding:9px 10px}
+textarea{resize:vertical;min-height:70px}
+.formrow{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.formrow > input{flex:1;min-width:140px}
+
+.trophies{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
+.trophy{padding:14px;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.03);min-width:0}
+.trophy.on{border-color:var(--gold);background:rgba(255,210,63,.08);box-shadow:0 0 24px rgba(255,210,63,.18)}
+.trophy b{display:block;font-family:var(--f-display);font-size:15px;letter-spacing:.03em}
+.trophy.on b{color:var(--gold)}
+.trophy p{margin:6px 0 0;font-size:13px;color:var(--dim)}
+
+.boss{display:grid;place-items:center;gap:14px;padding:6px 0}
+.backlog{width:180px;height:180px;border-radius:50%;display:grid;place-items:center;position:relative;
+  background:radial-gradient(circle at 50% 45%, #ff5470 0, #6b0f3a 55%, #1a0420 100%);box-shadow:0 0 60px rgba(255,84,112,.6);animation:breathe 1.4s ease-in-out infinite}
+.backlog span{font-family:var(--f-mono);font-size:12px;letter-spacing:.1em;text-align:center;line-height:1.25;color:#ffd0dc}
+@keyframes breathe{50%{transform:scale(1.05)}}
+.backlog.hit{animation:none;transform:scale(.94)}
+.fire{font-family:var(--f-display);font-size:22px;padding:16px 36px;border-radius:999px}
+.dmg{position:absolute;font-family:var(--f-display);color:var(--gold);pointer-events:none;animation:rise .7s ease-out forwards}
+@keyframes rise{to{transform:translateY(-60px);opacity:0}}
+
+.gm section{display:grid;gap:8px;padding:12px;border:1px solid var(--line);border-radius:10px}
+.gm .phases{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}
+.gm .ach{display:grid;grid-template-columns:auto 1fr;gap:6px 10px;align-items:center}
+.gm .ach input[type=checkbox]{width:20px;height:20px;accent-color:var(--gold)}
+.gm .ach .d{grid-column:2}
+.video-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.video-row .grow{flex:1;min-width:120px;overflow-wrap:anywhere}
+
+#theater{position:absolute;inset:0;z-index:35;background:rgba(3,2,12,.94);display:grid;grid-template-rows:auto 1fr auto;gap:10px;
+  padding:16px max(16px, env(safe-area-inset-right,0px)) 16px max(16px, env(safe-area-inset-left,0px))}
+#theater header{display:flex;align-items:center;gap:12px}
+#theater h2{font-family:var(--f-display);margin:0;font-size:20px;color:var(--magenta);flex:1;min-width:0}
+#theater video{width:100%;height:100%;max-height:100%;object-fit:contain;background:#000;border-radius:10px;min-height:0}
+#theater .linkbox{display:grid;place-items:center;gap:14px;text-align:center}
+#theater footer{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+
+#reveal{position:absolute;inset:0;z-index:36;display:grid;place-items:center;text-align:center;
+  background:radial-gradient(circle at 50% 50%, rgba(176,123,255,.35), rgba(7,5,26,.96) 60%);padding:16px max(16px, env(safe-area-inset-right,0px)) 16px max(16px, env(safe-area-inset-left,0px))}
+#reveal .inner{max-width:760px;display:grid;gap:16px;justify-items:center}
+#reveal small{font-family:var(--f-mono);letter-spacing:.3em;color:var(--violet)}
+#reveal h2{font-family:var(--f-display);font-size:clamp(30px,6vw,60px);margin:0;text-wrap:balance;
+  background:linear-gradient(90deg,var(--cyan),var(--violet),var(--magenta));-webkit-background-clip:text;background-clip:text;color:transparent}
+#reveal p{font-size:18px;line-height:1.55;margin:0;white-space:pre-wrap;color:var(--ink)}
+
+#splash{position:absolute;inset:0;z-index:34;display:grid;place-items:center;pointer-events:none}
+#splash b{font-family:var(--f-display);font-size:clamp(34px,8vw,84px);color:var(--gold);text-shadow:0 0 30px rgba(255,210,63,.7);animation:pop .3s ease-out}
+
+#toasts{position:absolute;right:max(16px, env(safe-area-inset-right,0px));bottom:max(70px, env(safe-area-inset-bottom,0px));z-index:50;display:grid;gap:8px;justify-items:end;max-width:min(360px, calc(100% - 32px))}
+.toast{padding:10px 14px;border-radius:8px;background:var(--glass);border:1px solid var(--cyan);font-size:14px;animation:pop .2s ease-out}
+
+@media (max-width:640px){
+  .brand h1{font-size:15px}
+  #help{display:none}
+  .claim{width:44%}
+  #bossbar{top:118px}
+}
+@media (prefers-reduced-motion: reduce){
+  *{animation:none!important;transition:none!important}
+}
+</style>
+
+<canvas id="world" aria-label="The arcade hall. Move with WASD, the arrow keys, or by tapping."></canvas>
+<canvas id="fx"></canvas>
+
+<div class="hud">
+  <div class="brand">
+    <h1>eAssist Neon Arcade</h1>
+    <span id="phaseChip" class="chip lobby">Explore</span>
+  </div>
+  <div class="hud-right">
+    <span class="stat">Online <b id="onlineCount" class="num">1</b></span>
+    <span class="stat">Score <b id="myScore" class="num">0</b></span>
+    <button class="btn" id="boardBtn" type="button">Leaderboard</button>
+    <button class="btn hot" id="gmBtn" type="button" hidden>Game Master</button>
+  </div>
+</div>
+
+<div id="banner" hidden></div>
+<div id="bossbar" hidden>
+  <div class="lbl"><span>THE BACKLOG</span><span id="bossHpText" class="num"></span></div>
+  <div class="track"><i id="bossFill"></i></div>
+</div>
+
+<div id="prompt" hidden>
+  <button class="btn primary" id="enterBtn" type="button">Enter</button>
+  <span class="kbd">E</span>
+</div>
+<div id="help">Move: WASD, arrow keys, or tap a spot · Enter a destination: E · <span id="modeNote">Connecting…</span></div>
+
+<div id="panel" hidden>
+  <div class="card" id="panelCard" role="dialog" aria-modal="true" aria-labelledby="panelTitle">
+    <header>
+      <div><h2 id="panelTitle"></h2><p id="panelTag"></p></div>
+      <button class="btn" id="panelClose" type="button">Close</button>
+    </header>
+    <div id="panelBody"></div>
+  </div>
+</div>
+
+<div id="theater" hidden>
+  <header><h2 id="theaterTitle"></h2><button class="btn" id="theaterClose" type="button">Back to the arcade</button></header>
+  <div id="theaterStage" style="min-height:0;display:grid"></div>
+  <footer id="theaterFoot"></footer>
+</div>
+
+<div id="reveal" hidden>
+  <div class="inner">
+    <small>THE NEXT CHAPTER</small>
+    <h2 id="revealH"></h2>
+    <p id="revealB"></p>
+    <button class="btn" id="revealClose" type="button">Back to the arcade</button>
+  </div>
+</div>
+<div id="splash" hidden><b id="splashText"></b></div>
+<div id="toasts" aria-live="polite"></div>
+
+<script>
+(() => {
+'use strict';
+const $ = s => document.querySelector(s);
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* ---------- world geometry ---------- */
+const W = 1800, H = 1240, CX = 900, CY = 620, RX = 820, RY = 560;
+const POD_RX = 520, POD_RY = 370, POD_R = 62, ARENA_R = 120;
+const DESTS = [
+  {id:'mission', name:'Mission Control', tag:'Your missions and the team’s progress', color:'#3ff3ff', ang:-90},
+  {id:'sprint',  name:'Ticket Sprint',  tag:'20 seconds: close the ready tickets, skip the ones missing info', color:'#ffd23f', ang:-30},
+  {id:'wall',    name:'Shout-Out Wall', tag:'Thank someone for this quarter', color:'#ff3fd2', ang:30},
+  {id:'portal',  name:'Portal Gate',    tag:'The next chapter of eAssist', color:'#b07bff', ang:90},
+  {id:'vault',   name:'Trophy Vault',   tag:'Quarterly achievements, unlocked live', color:'#4dffa6', ang:150},
+  {id:'rewind',  name:'Quarter Rewind', tag:'Five questions about the quarter', color:'#ff8a3f', ang:210},
+];
+DESTS.forEach(d => { const a = d.ang * Math.PI/180; d.x = CX + Math.cos(a)*POD_RX; d.y = CY + Math.sin(a)*POD_RY; });
+const ARENA = {id:'arena', name:'Core Arena', tag:'Boss fights happen here', color:'#ff5470', x:CX, y:CY};
+const destById = id => id === 'arena' ? ARENA : DESTS.find(d => d.id === id);
+
+/* ---------- content ---------- */
+const CLAIMS = ['HD Open Dental update failed','HD Printer offline','SEC Phishing report','SEC MFA reset','NOI DTX Studio won’t launch',
+  'NOI New office connections','CP Windows 10 ESU','CP Workstation RAM upgrade','DEV Deploy request','HD VPN keeps dropping'];
+const FLAGS = ['NO OFFICE ID','NO CALLBACK #','NO SCREENSHOT','UNCLEAR ASK'];
+const TEAMS = ['Help Desk 1','Help Desk 2','New SC / Admin / Security','NOI / CP','Innovation'];
+const QUIZ = [
+  {q:'Microsoft ended free Windows 10 support on…', a:['January 14, 2025','October 14, 2025','December 31, 2025','June 30, 2026'], c:1},
+  {q:'In “Windows 10 ESU”, ESU stands for…', a:['Extended Security Updates','Enterprise Support Upgrade','End of Service Utility','Emergency Software Update'], c:0},
+  {q:'Which breakout flagged DTX Studio and Open Dental update roadblocks from offices?', a:['Help Desk','Innovation','NOI / CP','Security'], c:2},
+  {q:'A user forwards a suspicious email. What’s the right first move?', a:['Click the link to check it','Report it to Security without opening links','Reply and ask the sender','Delete it and move on'], c:1},
+  {q:'What makes a ticket “done”, not just “closed”?', a:['The timer ran out','It was reassigned','The fix is confirmed with the user and documented','The office stopped replying'], c:2},
+];
+const DEFAULT_ACH = [
+  {t:'Help Desk Heroes', d:'Add the Help Desk’s ticket win for the quarter in the Game Master console.', on:false},
+  {t:'NOI & CP Navigators', d:'Add how many new offices were brought online.', on:false},
+  {t:'Security Shield', d:'Add the security win, e.g. phishing reports handled.', on:false},
+  {t:'Innovation Lab', d:'Add what the Innovation team shipped.', on:false},
+  {t:'Rocks Crushed', d:'Add how many rocks the team completed.', on:false},
+  {t:'Mission Ready', d:'Add the missions committed for next quarter.', on:false},
+];
+const MISSIONS = [
+  {id:'sprint', t:'Score 15+ in Ticket Sprint', done:m => (m.sprint||0) >= 15},
+  {id:'rewind', t:'Get 4 of 5 in Quarter Rewind', done:m => (m.quiz||0) >= 4},
+  {id:'wall',   t:'Post a shout-out', done:m => !!m.kudos},
+  {id:'vault',  t:'Visit the Trophy Vault', done:m => !!m.vault},
+  {id:'boss',   t:'Deal 50 damage to The Backlog', done:m => (m.dmg||0) >= 50},
+];
+const score = m => (m.sprint||0) + (m.quiz||0)*4 + (m.kudos?5:0) + Math.floor((m.dmg||0)/5) + (m.vault?2:0);
+
+/* ---------- state ---------- */
+const LIVE_DEFAULT = {phase:'lobby', bossMax:600, bossHp:600, banner:'', achievements:null, reveal:null, media:[], playing:null};
+const S = {
+  mode:'demo', isGM:false, isHost:false, uid:null, myColor:'#3ff3ff', myName:'You',
+  me:{x:CX, y:CY+250, tx:null, ty:null, z:'hub'},
+  peers:new Map(), live:{...LIVE_DEFAULT}, players:{}, profiles:{},
+  mine:{team:'', sprint:0, quiz:0, kudos:'', kudosAt:0, dmg:0, vault:false},
+  open:null, refresh:null, near:null, pendingOpen:null, pendingDmg:0, tapBuf:0, tapT:null,
+  firstLive:true, sealedWarned:false, lastPres:0, lastPresKey:'', seenPlay:null,
+};
+const NET = {room:null, db:null, user:null, assets:null};
+const keys = new Set();
+const tabId = 't' + Math.random().toString(36).slice(2, 10);
+
+/* ---------- helpers ---------- */
+function h(tag, attrs, ...kids){
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v == null || v === false) continue;
+    if (k === 'class') el.className = v;
+    else if (k === 'text') el.textContent = v;
+    else if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
+    else if (k === 'style') el.style.cssText = v;
+    else el.setAttribute(k, v === true ? '' : v);
+  }
+  for (const c of kids.flat()) if (c != null && c !== false) el.append(c.nodeType ? c : document.createTextNode(String(c)));
+  return el;
+}
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+function toast(msg){
+  const t = h('div', {class:'toast', text:msg});
+  $('#toasts').append(t);
+  setTimeout(() => t.remove(), 4200);
+}
+function store(k, v){ try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
+function use(name){
+  try { return window.claude && window.claude.use ? Promise.resolve(window.claude.use(name)).catch(() => null) : Promise.resolve(null); }
+  catch (e) { return Promise.resolve(null); }
+}
+function nameOf(uid){
+  if (!uid) return 'Player';
+  if (uid === S.uid) return 'You';
+  if (BOTS.has(uid)) return BOTS.get(uid).name;
+  return (S.profiles[uid] && S.profiles[uid].name) || 'Player';
+}
+function allPlayers(){
+  const out = {...S.players};
+  if (S.uid) out[S.uid] = S.mine; else out['me'] = S.mine;
+  return out;
+}
+
+/* ---------- demo bots (only when the page can't reach the live room) ---------- */
+const BOTS = new Map();
+const BOT_NAMES = ['Nova','Pixel','Byte','Comet','Echo','Vega'];
+const BOT_COLORS = ['#ff8a3f','#4dffa6','#b07bff','#ffd23f','#ff3fd2','#7ab8ff'];
+const BOT_KUDOS = ['Thanks to Help Desk for covering the Open Dental update rush.','Security crew, the phishing drills paid off.',
+  'Huge thanks to whoever rewrote the new-office connection guide.','Innovation, the new ticket search is a lifesaver.'];
+function spawnBots(){
+  BOT_NAMES.forEach((n, i) => {
+    const id = 'bot-' + i, a = Math.random()*Math.PI*2;
+    BOTS.set(id, {name:'Demo · ' + n});
+    S.peers.set(id, {bot:true, by:id, color:BOT_COLORS[i], x:CX + Math.cos(a)*300, y:CY + Math.sin(a)*220, rx:CX, ry:CY, z:'hub', wait:Math.random()*2, tx:null, ty:null});
+    S.players[id] = {team:TEAMS[i%TEAMS.length], sprint:8 + (i*5)%14, quiz:2 + i%4, kudos:i < 4 ? BOT_KUDOS[i] : '', kudosAt:Date.now() - i*60000, dmg:0, vault:i%2 === 0};
+  });
+}
+function removeBots(){ for (const id of BOTS.keys()) { S.peers.delete(id); delete S.players[id]; } BOTS.clear(); }
+function tickBots(dt){
+  for (const p of S.peers.values()) {
+    if (!p.bot) continue;
+    if (S.live.phase === 'boss' && S.live.bossHp > 0) {
+      if (p.tx == null || Math.hypot(p.tx - CX, p.ty - CY) > ARENA_R) { const a = Math.random()*Math.PI*2; p.tx = CX + Math.cos(a)*70; p.ty = CY + Math.sin(a)*60; }
+      if (Math.hypot(p.x - CX, p.y - CY) < ARENA_R && Math.random() < dt*3) { S.pendingDmg += 1; S.players[p.by].dmg += 1; burst(CX, CY, p.color, 4); }
+    } else if (p.tx == null) {
+      p.wait -= dt;
+      if (p.wait <= 0) { const d = DESTS[Math.floor(Math.random()*DESTS.length)]; p.tx = d.x + (Math.random()-.5)*60; p.ty = d.y + (Math.random()-.5)*40; }
+    }
+    if (p.tx != null) {
+      const dx = p.tx - p.x, dy = p.ty - p.y, dd = Math.hypot(dx, dy);
+      if (dd < 6) { p.tx = null; p.wait = 2 + Math.random()*3; }
+      else { const sp = 200*dt; p.x += dx/dd*Math.min(sp, dd); p.y += dy/dd*Math.min(sp, dd); }
+      if (S.live.phase !== 'boss') pushOutOfArena(p);
+    }
+    p.z = zoneAt(p.x, p.y);
+  }
+}
+
+/* ---------- live connection ---------- */
+async function connect(){
+  const [room, db, user, assets] = await Promise.all([use('room'), use('db'), use('user'), use('assets')]);
+  Object.assign(NET, {room, db, user, assets});
+  if (user) {
+    try { const me = await user.me(); S.uid = me.id; S.myColor = me.color || S.myColor; } catch (e) {}
+  }
+  if (room && db) await goLive();
+  else {
+    S.isGM = true; S.isHost = true;
+    $('#modeNote').textContent = 'Demo mode: other players are simulated and the Game Master controls only affect this screen.';
+    $('#gmBtn').hidden = false;
+  }
+}
+async function goLive(){
+  const {room, db, user} = NET;
+  S.mode = 'live';
+  removeBots();
+  S.isGM = user ? await user.canEdit() : false;
+  $('#gmBtn').hidden = !S.isGM;
+  $('#modeNote').textContent = 'Live: everyone here shares this hall.';
+
+  room.onPeers(ch => {
+    for (const p of [...ch.joined, ...ch.updated]) {
+      if (p.sameTab) continue;
+      const pr = p.presence || {}, x = Number(pr.x), y = Number(pr.y);
+      if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+      const cur = S.peers.get(p.peer) || {rx:x, ry:y};
+      S.peers.set(p.peer, {...cur, x:clamp(x,0,W), y:clamp(y,0,H), z:typeof pr.z === 'string' ? pr.z.slice(0,12) : 'hub', by:p.by || (typeof pr.uid === 'string' ? pr.uid : null), guest:p.guest});
+    }
+    for (const p of ch.left) S.peers.delete(p.peer);
+    resolveNames();
+  }, () => {});
+  room.on('hit', m => {
+    burst(CX + (Math.random()-.5)*80, CY + (Math.random()-.5)*60, '#ffd23f', 3);
+    if (S.isHost) S.pendingDmg += clamp(Math.floor(Number(m.data && m.data.n) || 0), 0, 12);
+  }, () => {});
+  room.on('fx', m => { if (m.data && m.data.kind === 'confetti') confetti(); }, () => {});
+
+  const liveTimer = setTimeout(() => toast('The event state can’t be reached yet. You can still explore.'), 10000);
+  db.doc('live/state').onSnapshot(s => { clearTimeout(liveTimer); applyLive(s.exists ? s.data() : null); }, () => clearTimeout(liveTimer));
+  db.collection('players').onSnapshot(q => {
+    const next = {};
+    q.docs.forEach(d => { if (d.id !== S.uid) next[d.id] = d.data(); });
+    S.players = next; resolveNames(); refreshPanel();
+  }, () => {});
+  if (S.uid) {
+    try { const d = await db.doc('players/' + S.uid).get(); if (d.exists) Object.assign(S.mine, d.data()); } catch (e) {}
+  }
+  if (S.isGM) startHosting();
+}
+let namesPending = false;
+function resolveNames(){
+  if (!NET.user || namesPending) return;
+  const ids = new Set(Object.keys(S.players));
+  for (const p of S.peers.values()) if (p.by) ids.add(p.by);
+  if (!ids.size) return;
+  namesPending = true;
+  NET.user.profiles([...ids]).then(ps => { S.profiles = ps || {}; namesPending = false; refreshPanel(); }).catch(() => { namesPending = false; });
+}
+function startHosting(){
+  const lease = async () => {
+    try { const r = await NET.db.doc('live/lock').acquire({holder:tabId, ttlMs:8000}); S.isHost = !!r.acquired; }
+    catch (e) { S.isHost = false; }
+    if (S.open === 'gm' && S.refresh) S.refresh();
+  };
+  lease(); setInterval(lease, 3000);
+}
+
+/* ---------- shared event state ---------- */
+let liveQ = Promise.resolve();
+function cleanLive(o){
+  return {phase:o.phase, bossMax:o.bossMax, bossHp:o.bossHp, banner:o.banner || '', achievements:o.achievements || null,
+    reveal:o.reveal || null, media:o.media || [], playing:o.playing || null};
+}
+function setLive(patch){
+  const next = cleanLive({...S.live, ...patch});
+  applyLive(next);
+  if (S.mode !== 'live') return Promise.resolve();
+  liveQ = liveQ.then(() => NET.db.doc('live/state').set(next)).catch(e => toast('That change didn’t save: ' + (e && e.message || 'unknown error')));
+  return liveQ;
+}
+function applyLive(data){
+  const prev = S.live.phase, prevPlay = S.live.playing;
+  S.live = {...LIVE_DEFAULT, ...(data || {})};
+  const first = S.firstLive; S.firstLive = false;
+  if (S.live.phase !== prev) onPhase(first ? null : prev, S.live.phase);
+  const pl = S.live.playing;
+  if (pl && (!prevPlay || prevPlay.startedAt !== pl.startedAt)) { if (S.seenPlay !== pl.startedAt) { S.seenPlay = pl.startedAt; openTheater(pl, first); } }
+  if (!pl && !$('#theater').hidden && $('#theater').dataset.shared === '1') closeTheater();
+  updateHUD(); refreshPanel();
+}
+function onPhase(prev, next){
+  if (next === 'boss' && prev) { toast('The Backlog has breached the Core Arena. Head to the center!'); shake(); }
+  if (next === 'victory' && prev) { splash('BACKLOG CLEARED'); confetti(); if (S.open === 'arena') openPanel('arena'); }
+  if (next === 'reveal') showReveal();
+  if (next !== 'reveal') $('#reveal').hidden = true;
+  if (S.open === 'arena' || S.open === 'portal') openPanel(S.open);
+}
+
+/* ---------- personal progress ---------- */
+let mineT = null, mineQ = Promise.resolve(), warnedWrite = false;
+function saveMine(now){
+  updateHUD();
+  clearTimeout(mineT);
+  mineT = setTimeout(() => {
+    if (S.mode !== 'live' || !S.uid) return;
+    const body = {...S.mine, score:score(S.mine), at:Date.now()};
+    mineQ = mineQ.then(() => NET.db.doc('players/' + S.uid).set(body)).catch(() => {
+      if (!warnedWrite) { warnedWrite = true; toast('Your progress isn’t saving. Ask the host to give you Contributor access.'); }
+    });
+  }, now ? 0 : 1500);
+}
+
+/* ---------- boss damage ---------- */
+function arenaCount(){
+  let n = S.me.z === 'arena' ? 1 : 0;
+  for (const p of S.peers.values()) if (p.z === 'arena') n++;
+  return n;
+}
+function fire(ev){
+  if (S.live.phase !== 'boss' || S.live.bossHp <= 0) return;
+  const mult = 1 + Math.floor(arenaCount()/5);
+  S.mine.dmg += mult; saveMine();
+  const core = $('#backlog');
+  if (core) {
+    core.classList.add('hit'); setTimeout(() => core.classList.remove('hit'), 80);
+    const r = core.getBoundingClientRect(), host = core.parentElement.getBoundingClientRect();
+    const n = h('span', {class:'dmg', text:'-' + mult, style:`left:${r.left - host.left + 40 + Math.random()*100}px;top:${r.top - host.top + 40}px`});
+    core.parentElement.append(n); setTimeout(() => n.remove(), 700);
+  }
+  burst(CX + (Math.random()-.5)*60, CY + (Math.random()-.5)*50, '#ffd23f', 3);
+  if (S.mode === 'live') {
+    S.tapBuf += mult;
+    if (!S.tapT) S.tapT = setTimeout(flushTaps, 200);
+  } else S.pendingDmg += mult;
+}
+function flushTaps(){
+  const n = Math.min(S.tapBuf, 12); S.tapBuf = 0; S.tapT = null;
+  NET.room.emit('hit', {n}).catch(e => {
+    if (e && e.code === 'not_permitted' && !S.hitWarned) { S.hitWarned = true; toast('You can watch the fight, but you need Contributor access to deal damage.'); }
+  });
+}
+setInterval(() => {
+  if (!S.isHost || S.live.phase !== 'boss' || S.pendingDmg <= 0) return;
+  const hp = Math.max(0, S.live.bossHp - S.pendingDmg);
+  S.pendingDmg = 0;
+  setLive(hp === 0 ? {bossHp:0, phase:'victory'} : {bossHp:hp});
+}, 400);
+
+/* ---------- HUD ---------- */
+const PHASE_LABEL = {lobby:'Explore', boss:'Boss fight', victory:'Victory', reveal:'Reveal'};
+function updateHUD(){
+  const ph = S.live.phase;
+  const chip = $('#phaseChip'); chip.className = 'chip ' + ph; chip.textContent = PHASE_LABEL[ph] || ph;
+  $('#onlineCount').textContent = S.peers.size + 1;
+  $('#myScore').textContent = score(S.mine);
+  const b = $('#banner'); b.hidden = !S.live.banner; b.textContent = S.live.banner || '';
+  const bb = $('#bossbar'); bb.hidden = ph !== 'boss';
+  if (ph === 'boss') {
+    $('#bossFill').style.width = (100 * S.live.bossHp / Math.max(1, S.live.bossMax)) + '%';
+    $('#bossHpText').textContent = S.live.bossHp + ' / ' + S.live.bossMax + ' HP';
+  }
+}
+setInterval(() => { updateHUD(); if (S.open === 'arena' && S.refresh) S.refresh(); }, 250);
+
+/* ---------- panels ---------- */
+function openPanel(id){
+  const d = id === 'board' ? {name:'Leaderboard', tag:'Scores update live', color:'#3ff3ff'}
+          : id === 'gm' ? {name:'Game Master Console', tag:'Only editors see this', color:'#ff3fd2'}
+          : destById(id);
+  if (S.cleanup) { S.cleanup(); S.cleanup = null; }
+  S.open = id; S.refresh = null;
+  $('#panelCard').style.setProperty('--accent', d.color);
+  $('#panelTitle').textContent = d.name;
+  $('#panelTag').textContent = d.tag;
+  const body = $('#panelBody'); body.replaceChildren();
+  (RENDER[id] || (() => {}))(body);
+  $('#panel').hidden = false;
+  $('#panelClose').focus({preventScroll:true});
+}
+function closePanel(){
+  if (S.cleanup) { S.cleanup(); S.cleanup = null; }
+  S.open = null; S.refresh = null; $('#panel').hidden = true; cvs.focus({preventScroll:true});
+}
+function refreshPanel(){ if (S.refresh && S.open !== 'arena') S.refresh(); }
+$('#panelClose').addEventListener('click', closePanel);
+$('#panel').addEventListener('pointerdown', e => { if (e.target.id === 'panel') closePanel(); });
+$('#boardBtn').addEventListener('click', () => openPanel('board'));
+$('#gmBtn').addEventListener('click', () => openPanel('gm'));
+
+const RENDER = {
+  mission(body){
+    const mine = h('ul', {class:'list'}), team = h('ul', {class:'list'}), picker = h('div', {class:'formrow'});
+    const drawPicker = () => picker.replaceChildren(...TEAMS.map(tm => h('button', {class:'btn' + (S.mine.team === tm ? ' hot' : ''), type:'button', text:tm,
+      'aria-pressed':S.mine.team === tm ? 'true' : 'false', onclick:() => { S.mine.team = tm; saveMine(true); drawPicker(); toast('You’re playing for ' + tm); }})));
+    drawPicker();
+    body.append(h('h3', {text:'Your breakout team'}), picker, h('h3', {text:'Your missions'}), mine, h('h3', {text:'Team progress'}), team,
+      h('p', {class:'muted', text:'Missions add to your score. The Game Master can open the Core Arena at any time, so keep an eye on the banner.'}));
+    S.refresh = () => {
+      mine.replaceChildren(...MISSIONS.map(m => {
+        const ok = m.done(S.mine);
+        return h('li', {class:'row'}, h('span', {class:'check' + (ok ? ' on' : ''), text:ok ? '✓' : ''}), h('span', {class:'grow', text:m.t}));
+      }));
+      const ps = Object.values(allPlayers()), n = Math.max(1, ps.length);
+      team.replaceChildren(...MISSIONS.map(m => {
+        const c = ps.filter(m.done).length;
+        return h('li', {class:'row'}, h('div', {class:'grow'},
+          h('div', {class:'scoreline'}, h('span', {text:m.t}), h('span', {class:'num muted', text:c + ' / ' + ps.length})),
+          h('div', {class:'bar'}, h('i', {style:'width:' + (100*c/n) + '%'}))));
+      }));
+    };
+    S.refresh();
+  },
+
+  sprint(body){
+    const field = h('div', {class:'sprint'});
+    const scoreEl = h('span', {class:'big num', text:'0'}), timeEl = h('span', {class:'num muted', text:'20.0s'});
+    const start = h('button', {class:'btn primary', type:'button', text:'Start sprint'});
+    const best = h('span', {class:'muted'});
+    body.append(h('p', {class:'muted', text:'Close every ticket marked READY. A ticket missing info costs you a point.'}),
+      h('div', {class:'scoreline'}, h('div', null, scoreEl, ' ', timeEl), best, start), field);
+    const showBest = () => best.textContent = 'Your best: ' + (S.mine.sprint || 0);
+    showBest();
+    let pts = 0, t0 = 0, spawnI = null, tickI = null, running = false;
+    const cells = new Set();
+    function spawn(){
+      const free = [...Array(9).keys()].filter(i => !cells.has(i));
+      if (!free.length) return;
+      const cell = free[Math.floor(Math.random()*free.length)]; cells.add(cell);
+      const bad = Math.random() < .32, code = CLAIMS[Math.floor(Math.random()*CLAIMS.length)];
+      const el = h('button', {type:'button', class:'claim' + (bad ? ' bad' : ''), style:`left:${(cell%3)*33.3 + 1.5}%;top:${Math.floor(cell/3)*33.3 + 4}%`},
+        h('b', {text:code.split(' ')[0]}), h('span', {text:code.slice(code.indexOf(' ') + 1)}), h('small', {text:bad ? FLAGS[Math.floor(Math.random()*FLAGS.length)] : 'READY'}));
+      const kill = () => { el.remove(); cells.delete(cell); };
+      el.addEventListener('click', () => { if (!running) return; pts += bad ? -1 : 1; scoreEl.textContent = pts; kill(); });
+      field.append(el); setTimeout(kill, 1700);
+    }
+    function stop(){
+      running = false; clearInterval(spawnI); clearInterval(tickI); field.replaceChildren(); cells.clear();
+      start.disabled = false; start.textContent = 'Run it again';
+      if (pts > (S.mine.sprint || 0)) { S.mine.sprint = pts; saveMine(true); toast('New best: ' + pts + ' tickets closed'); }
+      showBest(); timeEl.textContent = 'Done';
+    }
+    start.addEventListener('click', () => {
+      pts = 0; scoreEl.textContent = '0'; running = true; t0 = performance.now(); start.disabled = true;
+      spawnI = setInterval(spawn, 520); spawn();
+      tickI = setInterval(() => { const left = 20 - (performance.now() - t0)/1000; timeEl.textContent = Math.max(0, left).toFixed(1) + 's'; if (left <= 0) stop(); }, 100);
+    });
+    S.cleanup = () => { if (running) stop(); };
+  },
+
+  rewind(body){
+    let i = 0, right = 0;
+    const host = h('div', {style:'display:grid;gap:14px'});
+    body.append(host);
+    function show(){
+      host.replaceChildren();
+      if (i >= QUIZ.length) {
+        if (right > (S.mine.quiz || 0)) { S.mine.quiz = right; saveMine(true); }
+        host.append(h('div', {class:'big', text:right + ' / ' + QUIZ.length}),
+          h('p', {class:'muted', text:right >= 4 ? 'Mission complete. Your best counts toward your score.' : 'Get 4 right to complete the mission.'}),
+          h('div', null, h('button', {class:'btn primary', type:'button', text:'Play again', onclick:() => { i = 0; right = 0; show(); }})));
+        return;
+      }
+      const q = QUIZ[i];
+      const answers = h('div', {class:'answers'});
+      q.a.forEach((a, k) => answers.append(h('button', {class:'btn', type:'button', text:a, onclick(){
+        [...answers.children].forEach((b, j) => { b.disabled = true; if (j === q.c) b.classList.add('right'); });
+        if (k === q.c) right++; else this.classList.add('wrong');
+        setTimeout(() => { i++; show(); }, 900);
+      }})));
+      host.append(h('h3', {text:'Question ' + (i + 1) + ' of ' + QUIZ.length}), h('p', {style:'font-size:19px;margin:0', text:q.q}), answers);
+    }
+    show();
+  },
+
+  wall(body){
+    const ta = h('textarea', {id:'kudosText', maxlength:'140', placeholder:'Who made this quarter better, and how?'});
+    ta.value = S.mine.kudos || '';
+    const count = h('span', {class:'muted num'});
+    const upd = () => count.textContent = ta.value.length + ' / 140';
+    ta.addEventListener('input', upd); upd();
+    const post = h('button', {class:'btn primary', type:'button', text:S.mine.kudos ? 'Update my shout-out' : 'Post shout-out', onclick(){
+      const v = ta.value.trim();
+      if (!v) { toast('Write a shout-out first.'); return; }
+      S.mine.kudos = v; S.mine.kudosAt = Date.now(); saveMine(true); post.textContent = 'Update my shout-out'; toast('Posted to the wall'); S.refresh();
+    }});
+    const wall = h('div', {class:'wall'});
+    body.append(h('div', {style:'display:grid;gap:8px'}, ta, h('div', {class:'scoreline'}, count, post)), h('h3', {text:'The wall'}), wall);
+    S.refresh = () => {
+      const all = allPlayers();
+      const notes = Object.entries(all).filter(([, m]) => m && m.kudos).sort((a, b) => (b[1].kudosAt || 0) - (a[1].kudosAt || 0));
+      wall.replaceChildren(...(notes.length ? notes.map(([id, m]) => h('div', {class:'note'}, h('span', {text:String(m.kudos).slice(0,140)}), h('cite', {text:'— ' + nameOf(id === 'me' ? S.uid : id)})))
+        : [h('p', {class:'muted', text:'No shout-outs yet. Post the first one.'})]));
+    };
+    S.refresh();
+  },
+
+  vault(body){
+    if (!S.mine.vault) { S.mine.vault = true; saveMine(true); }
+    const grid = h('div', {class:'trophies'});
+    body.append(h('p', {class:'muted', text:'Trophies unlock live as the Game Master reveals each quarterly win.'}), grid);
+    S.refresh = () => {
+      const list = S.live.achievements || DEFAULT_ACH;
+      grid.replaceChildren(...list.map(a => a.on
+        ? h('div', {class:'trophy on'}, h('b', {text:a.t}), h('p', {text:a.d}))
+        : h('div', {class:'trophy'}, h('b', {text:'Locked'}), h('p', {text:'Waiting for the Game Master'}))));
+    };
+    S.refresh();
+  },
+
+  portal(body){
+    if (S.live.phase === 'reveal' && S.live.reveal) {
+      body.append(h('h3', {text:'Unlocked'}), h('p', {style:'font-size:20px;margin:0', text:S.live.reveal.h || ''}),
+        h('p', {style:'white-space:pre-wrap;margin:0', text:S.live.reveal.b || ''}),
+        h('div', null, h('button', {class:'btn primary', type:'button', text:'Watch the reveal again', onclick:() => { closePanel(); showReveal(); }})));
+    } else {
+      body.append(h('div', {class:'big', style:'color:var(--violet)', text:'SEALED'}),
+        h('p', {class:'muted', text:'The gate opens when the Game Master triggers the reveal. Finish your missions while you wait.'}));
+    }
+    const vids = S.live.media || [];
+    if (vids.length) {
+      body.append(h('h3', {text:'Screening room'}), h('ul', {class:'list'}, vids.map(v =>
+        h('li', {class:'row'}, h('span', {class:'grow', text:v.title}), h('button', {class:'btn', type:'button', text:'Watch', onclick:() => openTheater({...v, startedAt:0}, false, true)})))));
+    }
+  },
+
+  arena(body){
+    const ph = S.live.phase;
+    if (ph === 'boss') {
+      const hp = h('span', {class:'num'}), fill = h('i'), crowd = h('span', {class:'muted num'});
+      const core = h('div', {class:'backlog', id:'backlog'}, h('span', null, 'THE', h('br'), 'BACKLOG', h('br'), h('small', {text:'stalled tickets'})));
+      const fireBtn = h('button', {class:'btn primary fire', type:'button', text:'FIRE', onclick:fire});
+      body.append(h('div', {class:'boss', style:'position:relative'}, core,
+        h('div', {style:'width:100%'}, h('div', {class:'scoreline'}, h('h3', {text:'Boss HP'}), hp), h('div', {class:'track'}, fill)),
+        fireBtn, crowd, h('p', {class:'muted', style:'margin:0;text-align:center', text:'Tap FIRE or press Space. Every 5 players in the arena adds +1 damage per hit.'})));
+      S.refresh = () => {
+        hp.textContent = S.live.bossHp + ' / ' + S.live.bossMax;
+        fill.style.width = (100*S.live.bossHp/Math.max(1, S.live.bossMax)) + '%';
+        const n = arenaCount();
+        crowd.textContent = n + ' in the arena · ×' + (1 + Math.floor(n/5)) + ' damage · you dealt ' + (S.mine.dmg || 0);
+      };
+      S.refresh();
+    } else if (ph === 'victory' || (S.live.bossHp <= 0 && ph !== 'lobby')) {
+      const top = Object.entries(allPlayers()).filter(([, m]) => m && m.dmg).sort((a, b) => b[1].dmg - a[1].dmg).slice(0, 5);
+      body.append(h('div', {class:'big', style:'color:var(--gold)', text:'BACKLOG CLEARED'}), h('h3', {text:'Top damage'}),
+        h('ol', {class:'list'}, top.map(([id, m], i) => h('li', {class:'row'}, h('span', {class:'num muted', text:'#' + (i+1)}), h('span', {class:'grow', text:nameOf(id === 'me' ? S.uid : id)}), h('span', {class:'num', text:m.dmg})))));
+    } else {
+      body.append(h('div', {class:'big', style:'color:var(--danger)', text:'SEALED'}),
+        h('p', {class:'muted', text:'Something is building up inside the glass. The Game Master will open the arena for the boss fight.'}));
+    }
+  },
+
+  board(body){
+    const ol = h('ol', {class:'list'}), teams = h('ul', {class:'list'});
+    body.append(h('h3', {text:'Teams'}), teams, h('h3', {text:'Players'}), ol);
+    S.refresh = () => {
+      const tot = {}; TEAMS.forEach(tm => tot[tm] = 0);
+      Object.values(allPlayers()).forEach(m => { if (m && tot[m.team] != null) tot[m.team] += score(m); });
+      const top = Math.max(1, ...Object.values(tot));
+      teams.replaceChildren(...Object.entries(tot).sort((a, b) => b[1] - a[1]).map(([tm, v]) => h('li', {class:'row'}, h('div', {class:'grow'},
+        h('div', {class:'scoreline'}, h('span', {text:tm}), h('span', {class:'num', text:v})), h('div', {class:'bar'}, h('i', {style:'width:' + (100*v/top) + '%'}))))));
+      const rows = Object.entries(allPlayers()).map(([id, m]) => [id === 'me' ? S.uid : id, score(m)]).sort((a, b) => b[1] - a[1]).slice(0, 15);
+      const all = allPlayers();
+      ol.replaceChildren(...rows.map(([id, s], i) => { const m = all[id === S.uid && !all[id] ? 'me' : id] || {}; return h('li', {class:'row'}, h('span', {class:'num muted', text:'#' + (i+1)}),
+        h('span', {class:'grow'}, h('span', {text:nameOf(id)}), m.team ? h('span', {class:'muted', text:' · ' + m.team}) : null), h('span', {class:'num', text:s})); }));
+    };
+    S.refresh();
+  },
+
+  gm(body){
+    body.classList.add('gm');
+    const status = h('p', {class:'muted', style:'margin:0'});
+    // phases
+    const phaseBtns = h('div', {class:'phases'});
+    const PH = [['lobby','Explore'],['boss','Start boss fight'],['victory','Declare victory'],['reveal','Show reveal']];
+    PH.forEach(([id, label]) => phaseBtns.append(h('button', {class:'btn', type:'button', 'data-ph':id, text:label, onclick(){
+      if (id === 'boss') setLive({phase:'boss', bossHp:S.live.bossHp > 0 ? S.live.bossHp : S.live.bossMax});
+      else if (id === 'reveal' && !S.live.reveal) toast('Write the reveal below first, then press Reveal the next chapter.');
+      else setLive({phase:id});
+    }})));
+    // boss
+    const maxIn = h('input', {type:'number', id:'gmBossMax', min:'50', step:'50', value:String(S.live.bossMax)});
+    // banner
+    const banIn = h('input', {type:'text', id:'gmBanner', maxlength:'120', placeholder:'e.g. Boss fight in 2 minutes. Finish your missions!'});
+    banIn.value = S.live.banner || '';
+    // achievements
+    const achBox = h('div', {class:'ach'});
+    let ach = JSON.parse(JSON.stringify(S.live.achievements || DEFAULT_ACH));
+    const drawAch = () => achBox.replaceChildren(...ach.flatMap((a, i) => {
+      const cb = h('input', {type:'checkbox', id:'gmAchOn' + i, 'aria-label':'Unlocked'}); cb.checked = !!a.on;
+      cb.addEventListener('change', () => { a.on = cb.checked; setLive({achievements:ach}); if (cb.checked) toast('Unlocked: ' + a.t); });
+      const t = h('input', {type:'text', id:'gmAchT' + i, maxlength:'48'}); t.value = a.t; t.addEventListener('input', () => a.t = t.value);
+      const d = h('input', {type:'text', id:'gmAchD' + i, maxlength:'160', class:'d'}); d.value = a.d; d.addEventListener('input', () => a.d = d.value);
+      return [cb, t, d];
+    }));
+    drawAch();
+    // reveal
+    const revH = h('input', {type:'text', id:'gmRevH', maxlength:'80', placeholder:'Headline'});
+    const revB = h('textarea', {id:'gmRevB', maxlength:'600', placeholder:'What’s next for eAssist'});
+    revH.value = store('arcade.revH') || ''; revB.value = store('arcade.revB') || '';
+    revH.addEventListener('input', () => store('arcade.revH', revH.value)); revB.addEventListener('input', () => store('arcade.revB', revB.value));
+    // videos
+    const vidList = h('ul', {class:'list'});
+    const vidTitle = h('input', {type:'text', id:'gmVidTitle', maxlength:'60', placeholder:'Title, e.g. Katie’s Q3 recap'});
+    const vidFile = h('input', {type:'file', id:'gmVidFile', accept:'video/mp4,video/webm,video/quicktime'});
+    const vidLink = h('input', {type:'url', id:'gmVidLink', placeholder:'…or paste a Canva view link'});
+    const upBtn = h('button', {class:'btn primary', type:'button', text:'Add video'});
+    upBtn.addEventListener('click', async () => {
+      const title = vidTitle.value.trim() || 'Video segment';
+      const media = [...(S.live.media || [])];
+      if (vidFile.files[0]) {
+        const f = vidFile.files[0];
+        if (f.size > 20*1024*1024) { toast('That file is ' + (f.size/1048576).toFixed(0) + ' MB. Uploads max out at 20 MB, so export from Canva at 720p or paste the Canva link instead.'); return; }
+        if (S.mode !== 'live' || !NET.assets) {
+          media.push({title, url:URL.createObjectURL(f), kind:'video', local:true});
+          toast('Added for this screen only (demo mode).');
+        } else {
+          upBtn.disabled = true; upBtn.textContent = 'Uploading…';
+          try { const a = await NET.assets.upload(f); media.push({title, url:a.url, id:a.id, kind:'video'}); toast('Uploaded: ' + title); }
+          catch (e) { toast('Upload failed: ' + (e && e.message || 'unknown error')); upBtn.disabled = false; upBtn.textContent = 'Add video'; return; }
+          upBtn.disabled = false; upBtn.textContent = 'Add video';
+        }
+      } else if (/^https:\/\//.test(vidLink.value.trim())) {
+        media.push({title, url:vidLink.value.trim(), kind:'link'});
+      } else { toast('Choose an MP4 file or paste an https link.'); return; }
+      vidTitle.value = ''; vidFile.value = ''; vidLink.value = '';
+      setLive({media});
+    });
+
+    body.append(
+      status,
+      h('section', null, h('h3', {text:'Event phase'}), phaseBtns),
+      h('section', null, h('h3', {text:'Katie’s video segments'}),
+        h('p', {class:'muted', style:'margin:0', text:'Export from Canva as MP4 (Share → Download → MP4, 720p keeps it under 20 MB). Play for everyone opens it full-screen on every player’s screen, in sync.'}),
+        vidList, vidTitle, h('div', {class:'formrow'}, vidFile), vidLink, h('div', null, upBtn)),
+      h('section', null, h('h3', {text:'Boss: The Backlog'}),
+        h('div', {class:'formrow'}, h('label', {for:'gmBossMax', text:'Max HP'}), maxIn,
+          h('button', {class:'btn', type:'button', text:'Reset to full', onclick:() => { const m = clamp(parseInt(maxIn.value, 10) || 600, 50, 100000); setLive({bossMax:m, bossHp:m}); toast('Boss reset to ' + m + ' HP'); }})),
+        h('p', {class:'muted', style:'margin:0', text:'Rule of thumb: about 15 HP per player for a 2-minute fight.'})),
+      h('section', null, h('h3', {text:'Banner'}),
+        h('div', {class:'formrow'}, banIn, h('button', {class:'btn', type:'button', text:'Show', onclick:() => setLive({banner:banIn.value.trim()})}),
+          h('button', {class:'btn', type:'button', text:'Clear', onclick:() => { banIn.value = ''; setLive({banner:''}); }}))),
+      h('section', null, h('h3', {text:'Quarterly achievements'}),
+        h('p', {class:'muted', style:'margin:0', text:'Tick a box to unlock that trophy for everyone. Edit the text, then save.'}), achBox,
+        h('div', {class:'formrow'}, h('button', {class:'btn', type:'button', text:'Save text', onclick:() => { setLive({achievements:ach}); toast('Achievements saved'); }}),
+          h('button', {class:'btn', type:'button', text:'Add trophy', onclick:() => { ach.push({t:'New trophy', d:'Describe the win.', on:false}); drawAch(); }}))),
+      h('section', null, h('h3', {text:'The reveal'}),
+        h('p', {class:'muted', style:'margin:0', text:'Kept on this device until you press Reveal, so nobody can peek.'}), revH, revB,
+        h('div', null, h('button', {class:'btn primary', type:'button', text:'Reveal the next chapter', onclick:() => {
+          if (!revH.value.trim()) { toast('Add a headline first.'); return; }
+          setLive({reveal:{h:revH.value.trim(), b:revB.value.trim()}, phase:'reveal'}); confetti();
+        }}))),
+      h('section', null, h('h3', {text:'Effects'}), h('div', {class:'formrow'},
+        h('button', {class:'btn', type:'button', text:'Confetti for everyone', onclick:() => { if (S.mode === 'live') NET.room.emit('fx', {kind:'confetti'}).catch(() => toast('Confetti didn’t send.')); else confetti(); }}),
+        h('button', {class:'btn danger', type:'button', text:'Reset the whole event', onclick(){
+          if (this.dataset.armed) { setLive({...LIVE_DEFAULT, media:S.live.media}); this.textContent = 'Reset the whole event'; delete this.dataset.armed; toast('Event reset (videos kept)'); }
+          else { this.dataset.armed = '1'; this.textContent = 'Press again to confirm'; setTimeout(() => { delete this.dataset.armed; this.textContent = 'Reset the whole event'; }, 4000); }
+        }})))
+    );
+    S.refresh = () => {
+      const ps = Object.keys(allPlayers()).length;
+      status.textContent = (S.mode === 'live'
+        ? (S.isHost ? 'This tab is hosting: boss damage is counted here. Keep it open during the fight.' : 'Another Game Master tab is counting boss damage.')
+        : 'Demo mode: these controls affect only this screen.') + ' · ' + (S.peers.size + 1) + ' online · ' + ps + ' with progress';
+      [...phaseBtns.children].forEach(b => b.classList.toggle('hot', b.dataset.ph === S.live.phase));
+      vidList.replaceChildren(...(S.live.media || []).map((v, i) => h('li', {class:'video-row row'},
+        h('span', {class:'grow', text:v.title + (v.kind === 'link' ? ' (link)' : '')}),
+        S.live.playing && S.live.playing.url === v.url
+          ? h('button', {class:'btn danger', type:'button', text:'Stop for everyone', onclick:() => setLive({playing:null})})
+          : h('button', {class:'btn primary', type:'button', text:'Play for everyone', onclick:() => setLive({playing:{title:v.title, url:v.url, kind:v.kind, startedAt:Date.now()}})}),
+        h('button', {class:'btn', type:'button', text:'Remove', 'aria-label':'Remove ' + v.title, onclick:() => setLive({media:S.live.media.filter((_, j) => j !== i)})}))));
+      if (!(S.live.media || []).length) vidList.append(h('li', {class:'muted', text:'No videos yet.'}));
+    };
+    S.refresh();
+  },
+};
+
+/* ---------- theater (Katie's videos) ---------- */
+function openTheater(item, lateJoin, solo){
+  const th = $('#theater'), stage = $('#theaterStage'), foot = $('#theaterFoot');
+  th.dataset.shared = solo ? '0' : '1';
+  $('#theaterTitle').textContent = item.title || 'Now playing';
+  stage.replaceChildren(); foot.replaceChildren();
+  if (item.kind === 'link') {
+    stage.append(h('div', {class:'linkbox'}, h('p', {style:'font-size:18px;margin:0', text:'This segment plays in Canva.'}),
+      h('a', {class:'btn primary', href:item.url, target:'_blank', rel:'noopener', text:'Watch now', style:'text-decoration:none;font-size:18px;padding:12px 24px'})));
+  } else {
+    const v = h('video', {src:item.url, playsinline:true, controls:true, preload:'auto'});
+    stage.append(v);
+    const offset = item.startedAt ? Math.max(0, (Date.now() - item.startedAt)/1000) : 0;
+    v.addEventListener('loadedmetadata', () => {
+      if (offset > 1 && offset < v.duration) v.currentTime = offset;
+      if (item.startedAt && offset >= v.duration) { closeTheater(); return; }
+    }, {once:true});
+    v.addEventListener('ended', () => closeTheater());
+    v.play().catch(() => {
+      v.muted = true;
+      v.play().catch(() => {});
+      foot.append(h('button', {class:'btn primary', type:'button', text:'Tap for sound', onclick(){ v.muted = false; v.play().catch(() => {}); this.remove(); }}));
+    });
+  }
+  th.hidden = false;
+}
+function closeTheater(){
+  const th = $('#theater'); const v = th.querySelector('video'); if (v) { v.pause(); v.removeAttribute('src'); v.load(); }
+  th.hidden = true; $('#theaterStage').replaceChildren();
+}
+$('#theaterClose').addEventListener('click', closeTheater);
+
+/* ---------- reveal & splash ---------- */
+function showReveal(){
+  const r = S.live.reveal; if (!r) return;
+  $('#revealH').textContent = r.h || ''; $('#revealB').textContent = r.b || '';
+  $('#reveal').hidden = false; confetti();
+}
+$('#revealClose').addEventListener('click', () => $('#reveal').hidden = true);
+function splash(text){ $('#splashText').textContent = text; $('#splash').hidden = false; setTimeout(() => $('#splash').hidden = true, 3200); }
+
+/* ---------- canvas world ---------- */
+const cvs = $('#world'), ctx = cvs.getContext('2d');
+cvs.tabIndex = 0;
+const fxc = $('#fx'), fx = fxc.getContext('2d');
+let dpr = 1;
+function resize(){
+  dpr = Math.min(2, window.devicePixelRatio || 1);
+  for (const c of [cvs, fxc]) { c.width = c.clientWidth*dpr; c.height = c.clientHeight*dpr; }
+}
+addEventListener('resize', resize); resize();
+
+function cam(){
+  const vw = cvs.clientWidth, vh = cvs.clientHeight;
+  const fit = Math.min(vw/W, vh/H);
+  const sc = fit >= .5 ? fit*1.02 : Math.max(fit, Math.min(vw, vh)/780);
+  const hw = vw/sc/2, hh = vh/sc/2;
+  const cx = hw*2 >= W ? W/2 : clamp(S.me.x, hw, W - hw);
+  const cy = hh*2 >= H ? H/2 : clamp(S.me.y, hh, H - hh);
+  return {sc, cx, cy, vw, vh};
+}
+const toWorld = (sx, sy, c) => ({x:(sx - c.vw/2)/c.sc + c.cx, y:(sy - c.vh/2)/c.sc + c.cy});
+
+function zoneAt(x, y){
+  if (Math.hypot(x - CX, y - CY) < ARENA_R + 20) return 'arena';
+  for (const d of DESTS) if (Math.hypot(x - d.x, y - d.y) < POD_R + 30) return d.id;
+  return 'hub';
+}
+function arenaOpen(){ return S.live.phase === 'boss' || S.live.phase === 'victory'; }
+function pushOutOfArena(p){
+  const dx = p.x - CX, dy = p.y - CY, d = Math.hypot(dx, dy);
+  if (d < ARENA_R && d > 0.01) { p.x = CX + dx/d*ARENA_R; p.y = CY + dy/d*ARENA_R; return true; }
+  if (d <= 0.01) { p.y = CY + ARENA_R; return true; }
+  return false;
+}
+function keepInHall(p){
+  const ex = (p.x - CX)/(RX - 30), ey = (p.y - CY)/(RY - 30), e = Math.hypot(ex, ey);
+  if (e > 1) { p.x = CX + (p.x - CX)/e; p.y = CY + (p.y - CY)/e; }
+}
+
+// particles
+const parts = [];
+function burst(x, y, color, n){ if (reduce) return; for (let i = 0; i < n; i++) parts.push({x, y, vx:(Math.random()-.5)*220, vy:(Math.random()-.5)*220, life:.6, color}); }
+const motes = Array.from({length:reduce ? 0 : 60}, () => ({x:Math.random()*W, y:Math.random()*H, s:.5 + Math.random()*1.5, v:6 + Math.random()*14}));
+let shakeT = 0;
+function shake(){ if (!reduce) shakeT = .5; }
+
+// confetti (screen space)
+const conf = [];
+function confetti(){
+  if (reduce) { splash('★'); return; }
+  const w = fxc.width, cols = ['#3ff3ff','#ff3fd2','#ffd23f','#4dffa6','#b07bff'];
+  for (let i = 0; i < 160; i++) conf.push({x:Math.random()*w, y:-20 - Math.random()*fxc.height*.4, vx:(Math.random()-.5)*120*dpr, vy:(120 + Math.random()*200)*dpr, r:Math.random()*6, vr:(Math.random()-.5)*8, c:cols[i%5], s:(4 + Math.random()*5)*dpr});
+}
+
+function drawIcon(id, x, y, c){
+  ctx.save(); ctx.translate(x, y); ctx.strokeStyle = c; ctx.fillStyle = c; ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.beginPath();
+  if (id === 'mission') { ctx.arc(0, 0, 16, 0, 7); ctx.moveTo(-24, 0); ctx.lineTo(24, 0); ctx.moveTo(0, -24); ctx.lineTo(0, 24); ctx.stroke(); }
+  else if (id === 'sprint') { ctx.moveTo(4, -22); ctx.lineTo(-10, 2); ctx.lineTo(2, 2); ctx.lineTo(-4, 22); ctx.lineTo(12, -4); ctx.lineTo(0, -4); ctx.closePath(); ctx.fill(); }
+  else if (id === 'wall') { ctx.moveTo(-20, -14); ctx.lineTo(20, -14); ctx.lineTo(20, 8); ctx.lineTo(-2, 8); ctx.lineTo(-12, 18); ctx.lineTo(-10, 8); ctx.lineTo(-20, 8); ctx.closePath(); ctx.stroke(); }
+  else if (id === 'portal') { ctx.ellipse(0, 0, 14, 22, 0, 0, 7); ctx.stroke(); ctx.beginPath(); ctx.ellipse(0, 0, 7, 13, 0, 0, 7); ctx.stroke(); }
+  else if (id === 'vault') { ctx.moveTo(-14, -18); ctx.lineTo(14, -18); ctx.lineTo(10, 2); ctx.quadraticCurveTo(0, 10, -10, 2); ctx.closePath(); ctx.stroke(); ctx.beginPath(); ctx.moveTo(0, 8); ctx.lineTo(0, 16); ctx.moveTo(-9, 18); ctx.lineTo(9, 18); ctx.stroke(); }
+  else if (id === 'rewind') { ctx.moveTo(4, -14); ctx.lineTo(-12, 0); ctx.lineTo(4, 14); ctx.closePath(); ctx.fill(); ctx.beginPath(); ctx.moveTo(18, -14); ctx.lineTo(2, 0); ctx.lineTo(18, 14); ctx.closePath(); ctx.fill(); }
+  ctx.restore();
+}
+function hexPath(x, y, r){ ctx.beginPath(); for (let i = 0; i < 6; i++) { const a = Math.PI/6 + i*Math.PI/3; ctx[i ? 'lineTo' : 'moveTo'](x + Math.cos(a)*r, y + Math.sin(a)*r*.78); } ctx.closePath(); }
+
+let t = 0, last = performance.now();
+function frame(now){
+  const dt = Math.min(.05, (now - last)/1000); last = now; t += dt;
+  step(dt);
+  draw(dt);
+  requestAnimationFrame(frame);
+}
+function step(dt){
+  const me = S.me;
+  if (!S.open && $('#theater').hidden) {
+    let vx = 0, vy = 0;
+    if (keys.has('arrowleft') || keys.has('a')) vx--;
+    if (keys.has('arrowright') || keys.has('d')) vx++;
+    if (keys.has('arrowup') || keys.has('w')) vy--;
+    if (keys.has('arrowdown') || keys.has('s')) vy++;
+    const sp = 330*dt;
+    if (vx || vy) { me.tx = null; S.pendingOpen = null; const m = Math.hypot(vx, vy); me.x += vx/m*sp; me.y += vy/m*sp; }
+    else if (me.tx != null) {
+      const dx = me.tx - me.x, dy = me.ty - me.y, d = Math.hypot(dx, dy);
+      if (d < 6) me.tx = null; else { me.x += dx/d*Math.min(sp, d); me.y += dy/d*Math.min(sp, d); }
+    }
+  }
+  keepInHall(me);
+  if (!arenaOpen() && pushOutOfArena(me)) {
+    if (!S.sealedWarned && me.tx == null) { S.sealedWarned = true; toast('The Core Arena is sealed until the boss fight.'); }
+    if (me.tx != null && Math.hypot(me.tx - CX, me.ty - CY) < ARENA_R) me.tx = null;
+  }
+  me.z = zoneAt(me.x, me.y);
+
+  // nearest destination
+  let near = null;
+  if (Math.hypot(me.x - CX, me.y - CY) < ARENA_R + 44) near = 'arena';
+  else for (const d of DESTS) if (Math.hypot(me.x - d.x, me.y - d.y) < POD_R + 40) near = d.id;
+  if (near !== S.near) {
+    S.near = near;
+    const pr = $('#prompt'); pr.hidden = !near;
+    if (near) $('#enterBtn').textContent = 'Enter ' + destById(near).name;
+  }
+  if (S.pendingOpen && near === S.pendingOpen && me.tx == null) { const id = S.pendingOpen; S.pendingOpen = null; openPanel(id); }
+
+  // presence
+  if (S.mode === 'live' && NET.room) {
+    const key = Math.round(me.x) + ',' + Math.round(me.y) + ',' + me.z;
+    const nowMs = performance.now();
+    if (key !== S.lastPresKey && nowMs - S.lastPres > 66) {
+      S.lastPres = nowMs; S.lastPresKey = key;
+      NET.room.presence({x:Math.round(me.x), y:Math.round(me.y), z:me.z, uid:S.uid}).catch(() => {});
+    }
+  }
+  if (BOTS.size) tickBots(dt);
+  for (const p of S.peers.values()) {
+    if (p.rx == null) { p.rx = p.x; p.ry = p.y; }
+    const k = Math.min(1, dt*10); p.rx += (p.x - p.rx)*k; p.ry += (p.y - p.ry)*k;
+  }
+  for (let i = parts.length - 1; i >= 0; i--) { const q = parts[i]; q.x += q.vx*dt; q.y += q.vy*dt; q.life -= dt; if (q.life <= 0) parts.splice(i, 1); }
+  for (const m of motes) { m.y -= m.v*dt; if (m.y < 0) { m.y = H; m.x = Math.random()*W; } }
+  if (shakeT > 0) shakeT -= dt;
+}
+
+function draw(){
+  const c = cam();
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.fillStyle = '#07051a'; ctx.fillRect(0, 0, c.vw, c.vh);
+  const sx = shakeT > 0 ? (Math.random()-.5)*10 : 0, sy = shakeT > 0 ? (Math.random()-.5)*10 : 0;
+  ctx.setTransform(dpr*c.sc, 0, 0, dpr*c.sc, dpr*(c.vw/2 - c.cx*c.sc + sx), dpr*(c.vh/2 - c.cy*c.sc + sy));
+
+  // floor
+  const g = ctx.createRadialGradient(CX, CY, 60, CX, CY, RX);
+  g.addColorStop(0, '#2a1060'); g.addColorStop(.55, '#170a3e'); g.addColorStop(1, '#0b0626');
+  ctx.beginPath(); ctx.ellipse(CX, CY, RX, RY, 0, 0, 7); ctx.fillStyle = g; ctx.fill();
+  ctx.save(); ctx.clip();
+  ctx.strokeStyle = 'rgba(63,243,255,.07)'; ctx.lineWidth = 1;
+  for (let x = 0; x <= W; x += 60) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+  for (let y = 0; y <= H; y += 60) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+  for (let r = 1; r <= 4; r++) { ctx.beginPath(); ctx.ellipse(CX, CY, 160 + r*120, (160 + r*120)*RY/RX, 0, 0, 7); ctx.strokeStyle = `rgba(255,63,210,${.1 - r*.015})`; ctx.lineWidth = 2; ctx.stroke(); }
+  // walkways
+  ctx.lineWidth = 26; ctx.strokeStyle = 'rgba(63,243,255,.05)';
+  for (const d of DESTS) { ctx.beginPath(); ctx.moveTo(CX, CY); ctx.lineTo(d.x, d.y); ctx.stroke(); }
+  ctx.restore();
+  // hall wall
+  ctx.beginPath(); ctx.ellipse(CX, CY, RX, RY, 0, 0, 7);
+  ctx.lineWidth = 6; ctx.strokeStyle = '#ff3fd2'; ctx.shadowColor = '#ff3fd2'; ctx.shadowBlur = 24; ctx.stroke(); ctx.shadowBlur = 0;
+  ctx.beginPath(); ctx.ellipse(CX, CY, RX - 14, RY - 14, 0, 0, 7); ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(63,243,255,.5)'; ctx.stroke();
+
+  // motes
+  ctx.fillStyle = 'rgba(160,220,255,.5)';
+  for (const m of motes) { ctx.beginPath(); ctx.arc(m.x, m.y, m.s, 0, 7); ctx.fill(); }
+
+  // pods
+  for (const d of DESTS) {
+    const near = S.near === d.id, pulse = reduce ? 0 : Math.sin(t*2 + d.ang)*.5 + .5;
+    ctx.save();
+    hexPath(d.x, d.y + 8, POD_R + 6); ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fill();
+    hexPath(d.x, d.y, POD_R); ctx.fillStyle = d.color + '22'; ctx.fill();
+    ctx.shadowColor = d.color; ctx.shadowBlur = near ? 30 : 12 + pulse*8; ctx.lineWidth = near ? 4 : 3; ctx.strokeStyle = d.color; ctx.stroke();
+    ctx.restore();
+    if (d.id === 'portal' && S.live.phase === 'reveal') { ctx.beginPath(); ctx.arc(d.x, d.y, POD_R + 10 + pulse*10, 0, 7); ctx.strokeStyle = 'rgba(176,123,255,.6)'; ctx.lineWidth = 3; ctx.stroke(); }
+    drawIcon(d.id, d.x, d.y, d.color);
+    ctx.font = '600 18px Audiowide, system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = d.color;
+    ctx.fillText(d.name.toUpperCase(), d.x, d.y + POD_R + 30);
+    if (d.id === 'vault') {
+      const list = S.live.achievements || DEFAULT_ACH, n = list.filter(a => a.on).length;
+      ctx.font = '14px "Share Tech Mono", monospace'; ctx.fillStyle = 'rgba(238,241,255,.7)'; ctx.fillText(n + '/' + list.length + ' UNLOCKED', d.x, d.y + POD_R + 50);
+    }
+    if (d.id === 'portal' && S.live.phase !== 'reveal') { ctx.font = '14px "Share Tech Mono", monospace'; ctx.fillStyle = 'rgba(238,241,255,.6)'; ctx.fillText('SEALED', d.x, d.y + POD_R + 50); }
+  }
+
+  // central arena (glass cylinder)
+  const boss = S.live.phase === 'boss';
+  ctx.save();
+  const ag = ctx.createRadialGradient(CX, CY, 10, CX, CY, ARENA_R);
+  ag.addColorStop(0, boss ? 'rgba(255,84,112,.55)' : 'rgba(63,243,255,.35)'); ag.addColorStop(1, boss ? 'rgba(255,84,112,.05)' : 'rgba(63,243,255,.04)');
+  ctx.beginPath(); ctx.arc(CX, CY, ARENA_R, 0, 7); ctx.fillStyle = ag; ctx.fill();
+  ctx.shadowColor = boss ? '#ff5470' : '#3ff3ff'; ctx.shadowBlur = 30; ctx.lineWidth = 5; ctx.strokeStyle = boss ? '#ff5470' : '#3ff3ff'; ctx.stroke();
+  ctx.shadowBlur = 0;
+  const spin = reduce ? 0 : t*(boss ? 2 : .5);
+  ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(255,255,255,.35)';
+  for (let i = 0; i < 6; i++) { ctx.beginPath(); ctx.arc(CX, CY, ARENA_R - 18, spin + i*Math.PI/3, spin + i*Math.PI/3 + .5); ctx.stroke(); }
+  if (boss) {
+    const hpF = S.live.bossHp/Math.max(1, S.live.bossMax);
+    ctx.beginPath(); ctx.arc(CX, CY, ARENA_R + 14, -Math.PI/2, -Math.PI/2 + hpF*Math.PI*2); ctx.lineWidth = 8; ctx.strokeStyle = '#ff3fd2'; ctx.stroke();
+    const br = 34 + (reduce ? 0 : Math.sin(t*6)*4);
+    ctx.beginPath(); ctx.arc(CX, CY, br, 0, 7); ctx.fillStyle = '#ff5470'; ctx.shadowColor = '#ff5470'; ctx.shadowBlur = 40; ctx.fill(); ctx.shadowBlur = 0;
+    ctx.fillStyle = '#1a0420'; ctx.beginPath(); ctx.arc(CX, CY - 4, 9, 0, 7); ctx.fill();
+  }
+  ctx.font = '16px Audiowide, system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = boss ? '#ff9aae' : '#bdfaff';
+  ctx.fillText(boss ? 'THE BACKLOG' : S.live.phase === 'victory' ? 'CLEARED' : 'CORE ARENA', CX, CY + ARENA_R + (boss ? 42 : 30));
+  ctx.restore();
+
+  // particles
+  for (const q of parts) { ctx.globalAlpha = Math.max(0, q.life/.6); ctx.fillStyle = q.color; ctx.fillRect(q.x - 3, q.y - 3, 6, 6); }
+  ctx.globalAlpha = 1;
+
+  // players
+  const drawP = (x, y, color, label, isMe) => {
+    ctx.beginPath(); ctx.ellipse(x, y + 14, 14, 5, 0, 0, 7); ctx.fillStyle = 'rgba(0,0,0,.4)'; ctx.fill();
+    ctx.beginPath(); ctx.arc(x, y, 14, 0, 7); ctx.fillStyle = color; ctx.shadowColor = color; ctx.shadowBlur = 18; ctx.fill(); ctx.shadowBlur = 0;
+    if (isMe) { ctx.lineWidth = 3; ctx.strokeStyle = '#fff'; ctx.stroke(); }
+    ctx.font = (isMe ? '700 ' : '600 ') + '14px "Chakra Petch", system-ui, sans-serif'; ctx.textAlign = 'center';
+    const w = ctx.measureText(label).width + 12;
+    ctx.fillStyle = 'rgba(7,5,26,.75)'; ctx.fillRect(x - w/2, y - 42, w, 20);
+    ctx.fillStyle = isMe ? '#fff' : '#dfe4ff'; ctx.fillText(label, x, y - 27);
+  };
+  for (const [k, p] of S.peers) drawP(p.rx, p.ry, p.bot ? p.color : (S.profiles[p.by] && S.profiles[p.by].color) || '#7ab8ff', p.bot ? BOTS.get(p.by).name : nameOf(p.by), false);
+  drawP(S.me.x, S.me.y, S.myColor, 'YOU', true);
+  if (S.me.tx != null) { ctx.beginPath(); ctx.arc(S.me.tx, S.me.ty, 10 + (reduce ? 0 : Math.sin(t*8)*3), 0, 7); ctx.strokeStyle = 'rgba(255,255,255,.5)'; ctx.lineWidth = 2; ctx.stroke(); }
+
+  // confetti
+  fx.setTransform(1, 0, 0, 1, 0, 0); fx.clearRect(0, 0, fxc.width, fxc.height);
+  for (let i = conf.length - 1; i >= 0; i--) {
+    const p = conf[i]; p.x += p.vx/60; p.y += p.vy/60; p.r += p.vr/60;
+    if (p.y > fxc.height + 20) { conf.splice(i, 1); continue; }
+    fx.save(); fx.translate(p.x, p.y); fx.rotate(p.r); fx.fillStyle = p.c; fx.fillRect(-p.s/2, -p.s/4, p.s, p.s/2); fx.restore();
+  }
+}
+
+/* ---------- input ---------- */
+addEventListener('keydown', e => {
+  const tag = (e.target && e.target.tagName) || '';
+  if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+  const k = e.key.toLowerCase();
+  if (k === 'escape') { if (!$('#theater').hidden) closeTheater(); else if (!$('#reveal').hidden) $('#reveal').hidden = true; else if (S.open) closePanel(); return; }
+  if (k === ' ' && S.open === 'arena') { e.preventDefault(); if (!e.repeat) fire(); return; }
+  if ((k === 'e' || k === 'enter') && !S.open && S.near && e.target === cvs || (k === 'e' && !S.open && S.near)) { e.preventDefault(); openPanel(S.near); return; }
+  if (['arrowleft','arrowright','arrowup','arrowdown','w','a','s','d'].includes(k) && !S.open) { e.preventDefault(); keys.add(k); }
+});
+addEventListener('keyup', e => keys.delete(e.key.toLowerCase()));
+addEventListener('blur', () => keys.clear());
+cvs.addEventListener('pointerdown', e => {
+  const r = cvs.getBoundingClientRect(), c = cam();
+  const w = toWorld(e.clientX - r.left, e.clientY - r.top, c);
+  let hit = null;
+  if (Math.hypot(w.x - CX, w.y - CY) < ARENA_R) hit = ARENA;
+  else for (const d of DESTS) if (Math.hypot(w.x - d.x, w.y - d.y) < POD_R) hit = d;
+  if (hit) {
+    const dx = S.me.x - hit.x, dy = S.me.y - hit.y, dd = Math.hypot(dx, dy) || 1;
+    const stand = hit === ARENA ? (arenaOpen() ? 40 : ARENA_R + 24) : 20;
+    S.me.tx = hit.x + dx/dd*stand; S.me.ty = hit.y + dy/dd*stand; S.pendingOpen = hit.id;
+  } else { S.me.tx = clamp(w.x, 0, W); S.me.ty = clamp(w.y, 0, H); S.pendingOpen = null; }
+});
+$('#enterBtn').addEventListener('click', () => { if (S.near) openPanel(S.near); });
+
+/* ---------- boot ---------- */
+spawnBots();
+updateHUD();
+requestAnimationFrame(frame);
+(document.fonts && document.fonts.ready || Promise.resolve()).then(() => {});
+connect();
+})();
+</script>
